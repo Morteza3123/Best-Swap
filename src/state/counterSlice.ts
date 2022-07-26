@@ -3,12 +3,12 @@ import { TokensList } from '../Components/TokenLlist';
 
 const initialState = {
   account: '',
-  library: {},
-  routerContract: {},
+  library: null,
+  routerContract: null,
   primaryTokenAddress: TokensList[0].address,
   secondaryTokenAddress: TokensList[1].address,
-  primaryTokenContract: {},
-  secondaryTokenContract: {}
+  primaryTokenContract: null,
+  secondaryTokenContract: null
 }
 
 export const counterSlice = createSlice({

@@ -2,13 +2,16 @@ import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { web3Modal } from "./Web3Modal";
 import { ethers } from "ethers";
-import { setAccount, setLibrary } from "../state/counterSlice";
+import { setAccount, setLibrary, setPrimaryTokenContract, setSecondaryTokenContract } from "../state/counterSlice";
 import { RiLogoutCircleRLine } from "react-icons/ri";
+import { tokenAbi } from "../utils/abi";
 
 export default function Navbar() {
   const dispatch = useDispatch();
   const account = useSelector((state: any) => state.counter.account);
   const library = useSelector((state: any) => state.counter.library);
+  const primaryTokenAddress = useSelector((state: any) => state.counter.primaryTokenAddress);
+  const secondaryTokenAddress = useSelector((state: any) => state.counter.secondaryTokenAddress);
 
   const connect = async () => {
     const provider = await web3Modal.connect();
@@ -21,19 +24,19 @@ export default function Navbar() {
       dispatch(setAccount(accounts[0]));
     }
     localStorage.setItem("BestDex", "injected");
-    // const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, library)
-    // dispatch(setTokenContract(tokenContract))
-    // const genoContract = new ethers.Contract(genoAddress, genoAbi, library)
-    // dispatch(setGenoContract(genoContract))
+    const primaryTokenContract = new ethers.Contract(primaryTokenAddress, tokenAbi, library)
+    dispatch(setPrimaryTokenContract(primaryTokenContract))
+    const secondaryTokenContract = new ethers.Contract(secondaryTokenAddress, tokenAbi, library)
+    dispatch(setSecondaryTokenContract(secondaryTokenContract))
   };
 
   const disConnect = async () => {
     if(library){
       await web3Modal.clearCachedProvider()
-      dispatch(setLibrary({}))
+      dispatch(setLibrary(null))
       dispatch(setAccount(''))
-      // dispatch(setTokenContract({}))
-      // dispatch(setGenoContract({}))
+      dispatch(setPrimaryTokenContract(null))
+      dispatch(setSecondaryTokenContract(null))
       localStorage.clear()
     }
   }
