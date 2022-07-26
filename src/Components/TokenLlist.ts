@@ -80,7 +80,7 @@ export const TokensList: {
         fullName: "Wrapped Ether",
         shortName: "WETH",
         image: 'https://s2.coinmarketcap.com/static/img/coins/64x64/2396.png',
-        key: 8,
+        key: 11,
         address: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
     },
     // {

@@ -18,6 +18,8 @@ import {
   tokenAbi,
   WMATIC,
 } from "../utils/abi";
+import AlertModal from "./AlertModal";
+import Loading from "./Loading";
 import { TokensList } from "./TokenLlist";
 import TokensModal from "./TokensModal";
 
@@ -27,7 +29,7 @@ export default function ExchangeCard() {
   const [primaryBalance, setPrimaryBalance] = useState("");
   const [secondaryBalance, setSecondaryBalance] = useState("");
   const [secondarySelected, setSecondarySelected] = useState(true); // flag for secondary button.
-  const [primaryInputValue, setPrimaryInputValue] = useState<any>("1");
+  const [primaryInputValue, setPrimaryInputValue] = useState<any>("");
   const [secondaryInputValue, setSecondaryInputValue] = useState<any>("");
   const [buttonFlag, setButtonFlag] = useState(""); // specify selected button for store token key.
   const [outPutLoading, setOutPutLoading] = useState(false);
@@ -36,6 +38,8 @@ export default function ExchangeCard() {
   const [primaryName, setPrimaryName] = useState("");
   const [secondaryName, setSecondaryName] = useState("");
   const [perOut, setPerOut] = useState<any>(0);
+  const [loading, setLoading] = useState(false);
+  const [swapAlert, setSwapAlert] = useState(false);
 
   const dispatch = useDispatch();
   const account = useSelector((state: any) => state.counter.account);
@@ -56,9 +60,11 @@ export default function ExchangeCard() {
   const showPrimaryBalance = async () => {
     if (primaryTokenContract) {
       try {
+        const primaryDecimal = await primaryTokenContract.decimals();
         const primaryBalance = await primaryTokenContract.balanceOf(account);
-        // console.log(parseFloat(primaryBalance) / 10 ** 18);
-        setPrimaryBalance((parseFloat(primaryBalance) / 10 ** 18).toString());
+        setPrimaryBalance(
+          (parseFloat(primaryBalance) / 10 ** primaryDecimal).toString()
+        );
       } catch (error) {
         console.log(error);
       }
@@ -68,17 +74,33 @@ export default function ExchangeCard() {
   const showSecondaryBalance = async () => {
     if (secondaryTokenContract) {
       try {
+        const secondaryDecimal = await secondaryTokenContract.decimals();
         const secondaryBalance = await secondaryTokenContract.balanceOf(
           account
         );
         setSecondaryBalance(
-          (parseFloat(secondaryBalance) / 10 ** 18).toString()
+          (parseFloat(secondaryBalance) / 10 ** secondaryDecimal).toString()
         );
       } catch (error) {
         console.log(error);
       }
     }
   };
+
+  useEffect(() => {
+    const primaryTokenContract = new ethers.Contract(
+      primaryTokenAddress,
+      tokenAbi,
+      library
+    );
+    dispatch(setPrimaryTokenContract(primaryTokenContract));
+    const secondaryTokenContract = new ethers.Contract(
+      secondaryTokenAddress,
+      tokenAbi,
+      library
+    );
+    dispatch(setSecondaryTokenContract(secondaryTokenContract));
+  }, [library, primaryTokenAddress, secondaryTokenAddress]);
 
   useEffect(() => {
     showPrimaryBalance();
@@ -112,10 +134,9 @@ export default function ExchangeCard() {
   };
 
   const findPath = async () => {
-    setPath([primaryTokenAddress, secondaryTokenAddress] as any);
+    setPath([]);
     if (library && primaryTokenContract && secondaryTokenContract) {
       if (primaryTokenAddress === secondaryTokenAddress) return;
-      setOutPutLoading(true);
       const routerContract = new ethers.Contract(
         quickRouterAddress,
         routerAbi,
@@ -152,7 +173,6 @@ export default function ExchangeCard() {
       setPrimaryName(primaryName);
       setSecondaryName(secondaryName);
       const path = await getBestPath(fromToken, toToken);
-      console.log(path.text);
       setPath(path.array);
       setPathText(path.text);
       const amountsOut = await routerContract.getAmountsOut(
@@ -160,7 +180,6 @@ export default function ExchangeCard() {
         path.array
       );
       setPerOut(amountsOut[amountsOut.length - 1] / 10 ** toTokenDecimal);
-      setOutPutLoading(false);
     }
   };
 
@@ -203,20 +222,24 @@ export default function ExchangeCard() {
         setOutPutLoading(false);
         return;
       }
-
       const fromTokenDecimal = await fromTokenContract.decimals();
       const toTokenDecimal = await toTokenContract.decimals();
       const finalAmount = (
         Number(primaryInputValue) *
         10 ** fromTokenDecimal
       ).toLocaleString("fullwide", { useGrouping: false });
-      const amountsOut = await routerContract.getAmountsOut(finalAmount, path);
+      let amountsOut;
+      if (path.length == 0) {
+        amountsOut = await routerContract.getAmountsOut(finalAmount, [
+          fromToken,
+          toToken,
+        ]);
+      } else {
+        amountsOut = await routerContract.getAmountsOut(finalAmount, path);
+      }
       setSecondaryInputValue(
         amountsOut[amountsOut.length - 1] / 10 ** toTokenDecimal
       );
-      console.log(amountsOut[amountsOut.length - 1] / 10 ** toTokenDecimal);
-      console.log("primaryInputValue :", primaryInputValue);
-      console.log("secondaryInputValue :", secondaryInputValue);
       setOutPutLoading(false);
     }
   };
@@ -237,68 +260,134 @@ export default function ExchangeCard() {
 
   const swap = async () => {
     if (!library || !primaryInputValue) return;
+    try {
+      setLoading(true);
+      const routerContract = new ethers.Contract(
+        quickRouterAddress,
+        routerAbi,
+        library
+      );
 
-    const routerContract = new ethers.Contract(
-      quickRouterAddress,
-      routerAbi,
-      library
-    );
+      let fromToken;
+      let toToken;
 
-    let fromToken;
-    let toToken;
-
-    if (primaryTokenAddress == maticAddress) {
-      fromToken = WMATIC;
-    } else {
-      fromToken = primaryTokenAddress;
-    }
-
-    if (secondaryTokenAddress == maticAddress) {
-      toToken = WMATIC;
-    } else {
-      toToken = secondaryTokenAddress;
-    }
-
-    const fromTokenContract = new ethers.Contract(fromToken, tokenAbi, library);
-    const toTokenContract = new ethers.Contract(toToken, tokenAbi, library);
-    if (path.length == 0) {
-      setOutPutLoading(false);
-      return;
-    }
-
-    const fromTokenDecimal = await fromTokenContract.decimals();
-    const toTokenDecimal = await toTokenContract.decimals();
-    const finalAmount = (
-      Number(primaryInputValue) *
-      10 ** fromTokenDecimal
-    ).toLocaleString("fullwide", { useGrouping: false });
-
-    const currentDate = new Date();
-
-    const futureTimestamp = currentDate.getTime() + 20 * 60000;
-
-    const signer = await library.getSigner();
-
-    if (fromToken !== WMATIC) {
-      await fromTokenContract.connect(signer).approve(routerContract.address, finalAmount);
-    }
-
-    // const result = await routerContract.connect(signer).swapExactTokensForTokens(
-    const result = await routerContract.connect(signer).swapExactETHForTokens(
-      '0',
-      // "0",
-      path,
-      account,
-      futureTimestamp.toString(),
-      {
-        value: (finalAmount.toString()),
-        gasLimit: 3000000
+      if (primaryTokenAddress == maticAddress) {
+        fromToken = WMATIC;
+      } else {
+        fromToken = primaryTokenAddress;
       }
-    );
 
-    const receipt = await result.wait();
-    if (receipt.status === 1) {
-      window.alert("success");
+      if (secondaryTokenAddress == maticAddress) {
+        toToken = WMATIC;
+      } else {
+        toToken = secondaryTokenAddress;
+      }
+
+      const fromTokenContract = new ethers.Contract(
+        fromToken,
+        tokenAbi,
+        library
+      );
+      const toTokenContract = new ethers.Contract(toToken, tokenAbi, library);
+      if (path.length == 0) {
+        setOutPutLoading(false);
+        return;
+      }
+
+      const fromTokenDecimal = await fromTokenContract.decimals();
+      const toTokenDecimal = await toTokenContract.decimals();
+      const finalAmount = (
+        Number(primaryInputValue) *
+        10 ** fromTokenDecimal
+      ).toLocaleString("fullwide", { useGrouping: false });
+
+      const currentDate = new Date();
+
+      const futureTimestamp = currentDate.getTime() + 20 * 60000;
+
+      const signer = await library.getSigner();
+
+      if (fromToken !== WMATIC && toToken !== WMATIC) {
+        await fromTokenContract
+          .connect(signer)
+          .approve(routerContract.address, finalAmount);
+        const result = await routerContract
+          .connect(signer)
+          .swapExactTokensForTokens(
+            finalAmount,
+            "0",
+            path,
+            account,
+            futureTimestamp.toString(),
+            {
+              gasLimit: 600000,
+            }
+          );
+
+        const receipt = await result.wait();
+        if (receipt.status === 1) {
+          setLoading(false);
+          setSwapAlert(true);
+          window.alert("success");
+          showPrimaryBalance();
+          showSecondaryBalance();
+        }
+      }
+
+      if (toToken == WMATIC) {
+        await fromTokenContract
+          .connect(signer)
+          .approve(routerContract.address, finalAmount);
+        const result = await routerContract
+          .connect(signer)
+          .swapExactTokensForETH(
+            finalAmount,
+            "0",
+            path,
+            account,
+            futureTimestamp.toString(),
+            {
+              gasLimit: 600000,
+            }
+          );
+
+        const receipt = await result.wait();
+        if (receipt.status === 1) {
+          setLoading(false);
+          setSwapAlert(true);
+          window.alert("success");
+          showPrimaryBalance();
+          showSecondaryBalance();
+        }
+      }
+
+      if (fromToken == WMATIC) {
+        const result = await routerContract
+          .connect(signer)
+          .swapExactETHForTokens(
+            "0",
+            path,
+            account,
+            futureTimestamp.toString(),
+            {
+              value: finalAmount,
+              gasLimit: 600000,
+            }
+          );
+
+        const receipt = await result.wait();
+        if (receipt.status === 1) {
+          setLoading(false);
+          setSwapAlert(true);
+          window.alert("success");
+          showPrimaryBalance();
+          showSecondaryBalance();
+        }
+      }
+    } catch (error) {
+      console.log(error)
+      setLoading(false);
+
     }
   };
 
@@ -433,7 +522,7 @@ export default function ExchangeCard() {
                 onClick={() => swap()}
                 className="flex justify-center items-center  py-4 w-full rounded-2xl font-medium text-lg gap-2 bg-blue-800 text-white opacity-60 shadow-sm shadow-sky-200 border-solid border-2 border-sky-100 hover:bg-blue-600 active:border-sky-500"
               >
-                {"SWAP"}
+                {loading ? <Loading /> : "SWAP"}
               </button>
             </div>
             {pathText ? (
@@ -463,6 +552,14 @@ export default function ExchangeCard() {
         />
       ) : null}
 
+      {swapAlert ? (
+        <AlertModal
+          alertModal={swapAlert}
+          setAlertModal={setSwapAlert}
+          status="success"
+        />
+      ) : null}
+
       {/* {swapConfirm ? (
         <SwapConfirmModal
           swapConfirm={swapConfirm}
@@ -475,13 +572,7 @@ export default function ExchangeCard() {
         <Loading loading={swapLoading} setLoading={setSwapLoading} />
       ) : null}
 
-      {swapAlert ? (
-        <AlertModal
-          alertModal={swapAlert}
-          setAlertModal={setSwapAlert}
-          status={status}
-        />
-      ) : null}
+      
 
       {setting ? (
         <SettingModal setting={setting} setSetting={setSetting} />
