@@ -5,8 +5,17 @@ import { ethers } from "ethers";
 import { setAccount, setLibrary, setPrimaryTokenContract, setSecondaryTokenContract } from "../state/counterSlice";
 import { RiLogoutCircleRLine } from "react-icons/ri";
 import { tokenAbi } from "../utils/abi";
+import { useSpring, animated } from "react-spring";
 
 export default function Navbar() {
+
+  const props1 = useSpring({
+    to: { opacity: 1 },
+    delay: 300,
+    config: { duration: 3000 },
+    from: { opacity: 0 },
+  });
+
   const dispatch = useDispatch();
   const account = useSelector((state: any) => state.counter.account);
   const library = useSelector((state: any) => state.counter.library);
@@ -14,6 +23,7 @@ export default function Navbar() {
   const secondaryTokenAddress = useSelector((state: any) => state.counter.secondaryTokenAddress);
 
   const connect = async () => {
+    
     const provider = await web3Modal.connect();
     const library = new ethers.providers.Web3Provider(provider);
     if (library) {
@@ -49,7 +59,9 @@ export default function Navbar() {
   },[])
 
   return (
-    <nav className="flex justify-between items-center w-full h-16 px-4 bg-black text-gray-50 ">
+    <nav className=" w-full h-16 px-4 bg-black text-gray-50 ">
+      <animated.div style={props1}>
+        <div className="flex justify-between items-center">
       <a className="flex-start" href="http://localhost:3000/">
         Best-Swap
       </a>
@@ -57,7 +69,7 @@ export default function Navbar() {
         <li className="nav-item">
           {!account ? (
             <button
-              className="text-secondary border-solid border-2 border-sky-500 shadow-md shadow-sky-400 py-3 rounded-3xl p-4 px-6 hover:bg-gray-800 active:border-gray-200"
+              className="text-secondary border-solid border-2 border-sky-100 shadow-md shadow-sky-100 py-3 rounded-3xl p-4 px-6 hover:bg-gray-800 active:border-gray-200"
               onClick={() => connect()}
             >
               Connect
@@ -65,7 +77,7 @@ export default function Navbar() {
           ) : (
             <div className="flex">
               <button
-                className="text-secondary border-solid border-2 border-sky-500 shadow-md shadow-sky-400 px-2 md:py-3 rounded-3xl md:p-4 md:px-6 hover:bg-gray-800 active:border-gray-200"
+                className="text-secondary border-solid border-2 border-sky-100 shadow-md shadow-sky-400 px-2 md:py-3 rounded-3xl md:p-4 md:px-6 hover:bg-gray-800 active:border-gray-200"
                 onClick={() => connect()}
               >
                 {`${account.slice(0, 5)} .... ${account.slice(-6, -1)}`}
@@ -83,6 +95,8 @@ export default function Navbar() {
           )}
         </li>
       </ul>
+      </div>
+      </animated.div>
     </nav>
   );
 }
